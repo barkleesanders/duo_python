@@ -1,6 +1,12 @@
 Demonstration of a Django site with Duo authentication.
 
-Tested with Django 1.10 on Python 2.7 and Python 3.5.
+This demo requires Python 3.10+ and Django 5.2. The core SDK retains its
+separate Python 2.7 and 3.5–3.10 matrix. Run `python manage.py check`,
+`python manage.py makemigrations`, `python manage.py migrate`, and
+`python manage.py test duo_app` for local setup and authentication controls.
+The tests use synthetic credentials and mocked Duo responses; they do not
+establish live Duo-provider compatibility. Logout uses CSRF-protected POST
+forms, as required by current Django authentication views.
 
 `example_site` is an example Django site which can be used to play with the
 app, which has the non-Duo setup already completed, as well as the setup needed
