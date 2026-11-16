@@ -27,6 +27,11 @@ jobs:
       - name: Dependencies
         run: |
           pip install -r requirements-dev.txt
+      - name: Repair Python 3.5 dlint syntax without changing checks
+        if: matrix.python-version == 3.5
+        run: |
+          python tools/dlint35_compat.py
+          python tools/validate_dlint35.py
       - name: Lint with flake8
         run: flake8
       - name: Test with nose2
