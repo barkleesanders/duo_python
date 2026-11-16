@@ -3,13 +3,13 @@ from functools import wraps
 from django.http import HttpResponseRedirect
 from django.conf import settings
 from django.views.decorators.http import require_http_methods
-from django.utils.decorators import available_attrs
 from django.contrib.auth.decorators import login_required
 from django.contrib.auth import REDIRECT_FIELD_NAME
 from django.contrib.sites.shortcuts import get_current_site
-from django.utils.http import urlquote
+from django.utils.http import url_has_allowed_host_and_scheme
+from urllib.parse import quote as urlquote
 from django.shortcuts import render
-from django.utils.translation import ugettext as _
+from django.utils.translation import gettext as _
 
 import duo_web
 from six.moves.urllib.parse import urlencode
@@ -24,7 +24,7 @@ def duo_authenticated(request):
     """
     Return True if a session shows the user has authenticated with Duo.
     """
-    if request.session.get('duo_authenticated') == request.user.username:
+    if request.user.is_authenticated and request.session.get('duo_authenticated') == request.user.username:
         return True
     return False
 
@@ -55,7 +55,7 @@ def duo_auth_required(view_func, redirect_field_name=REDIRECT_FIELD_NAME):
     Duo, redirecting to the Duo authentication page if necessary.
     """
     def decorator(view_func):
-        @wraps(view_func, assigned=available_attrs(view_func))
+        @wraps(view_func)
         def _wrapped_view(request, *args, **kwargs):
             if duo_authenticated(request):
                 return view_func(request, *args, **kwargs)
@@ -106,7 +106,7 @@ def login(request):
             settings.DUO_IKEY, settings.DUO_SKEY, settings.DUO_AKEY,
             sig_response)
         next_page = request.POST.get('next')
-        if duo_user is None:
+        if duo_user != duo_username(request.user):
             # Redirect user to try again, keeping the next argument.
             # Note that we don't keep any other arguments.
             arg_map = {'message': 'Duo access denied.'}
@@ -119,27 +119,26 @@ def login(request):
             duo_authenticate(request)
             if not next_page:
                 next_page = settings.LOGIN_REDIRECT_URL
+            if not url_has_allowed_host_and_scheme(
+                    next_page, {request.get_host()}, request.is_secure()):
+                next_page = settings.LOGIN_REDIRECT_URL
             return HttpResponseRedirect(next_page)
 
 
+@login_required
+@require_http_methods(['POST'])
 def logout(request, next_page=None,
            template_name='duo_logged_out.html',
            redirect_field_name=REDIRECT_FIELD_NAME):
-    """
-    View to remove Duo authentication.
-    """
+    """Clear secondary authentication through a CSRF-protected POST."""
     duo_unauthenticate(request)
-    if next_page is None:
-        redirect_to = request.GET.get(redirect_field_name, '')
-        if redirect_to:
-            return HttpResponseRedirect(redirect_to)
-        else:
-            current_site = get_current_site(request)
-            return render(request, template_name, {
-                'site': current_site,
-                'site_name': current_site.name,
-                'title': _('Logged out')
-            })
-    else:
-        # Redirect to this page until the session has been cleared.
-        return HttpResponseRedirect(next_page or request.path)
+    redirect_to = next_page or request.POST.get(redirect_field_name, '')
+    if redirect_to and url_has_allowed_host_and_scheme(
+            redirect_to, {request.get_host()}, request.is_secure()):
+        return HttpResponseRedirect(redirect_to)
+    current_site = get_current_site(request)
+    return render(request, template_name, {
+        'site': current_site,
+        'site_name': current_site.name,
+        'title': _('Logged out')
+    })

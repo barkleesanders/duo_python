@@ -1,0 +1,15 @@
+{% extends "base.html" %}
+{% block content %}
+{% if secondary %}
+<p>Content protected by Django and Duo auth.</p>
+<form method="post" action="{% url 'duo_logout' %}">
+{% csrf_token %}<button type="submit">Log out of secondary Duo auth.</button>
+</form>
+{% else %}
+<p>Content protected by Django auth.</p>
+<p><a href="/duo_private/">Continue to secondary auth content.</a></p>
+{% endif %}
+<form method="post" action="{% url 'logout' %}">
+{% csrf_token %}<button type="submit">Log out of primary Django auth.</button>
+</form>
+{% endblock %}
